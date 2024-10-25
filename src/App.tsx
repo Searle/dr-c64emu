@@ -14,27 +14,45 @@ declare global {
 
 const makeHeatmap = (heatmapCanvas: HTMLCanvasElement) => {
     const ctx = heatmapCanvas.getContext("2d")!;
-    const imageData = ctx.createImageData(512, 512);
+
+    const width1 = 256;
+    const height1 = Math.floor((65536 + width1 - 1) / width1);
+
+    const width = width1 * 2;
+    const height = height1 * 2;
+
+    const imageData = ctx.createImageData(width, height);
     const data = imageData.data;
 
     // Set alpha
-    for (let i = data.length - 1; i > 0; i -= 4) data[i] = 255;
+    // for (let i = data.length - 1; i > 0; i -= 4) data[i] = 255;
 
     const VALUE = 128;
 
-    const setPixel = (index: number) => {
+    const lineOfs0 = width * 4;
+    const lineOfs1 = width * 4 + 4;
+    const rowOfs = width * 8;
+
+    const setPixel = (index: number, alphaIndex: number) => {
         data[index] = VALUE;
         data[index + 4] = VALUE;
-        data[index + 2048] = VALUE;
-        data[index + 2052] = VALUE;
+        data[index + lineOfs0] = VALUE;
+        data[index + lineOfs1] = VALUE;
+        data[alphaIndex] = 255;
+        data[alphaIndex + 4] = 255;
+        data[alphaIndex + lineOfs0] = 255;
+        data[alphaIndex + lineOfs1] = 255;
     };
 
     const markPixel = (index: number) => {
-        data[index + 4] = data[index + 2048] = data[index + 2052] = 255;
+        data[index + 4] = data[index + lineOfs0] = data[index + lineOfs1] = 255;
     };
 
     const unmarkPixel = (index: number) => {
-        data[index + 4] = data[index + 2048] = data[index + 2052] = data[index];
+        data[index + 4] =
+            data[index + lineOfs0] =
+            data[index + lineOfs1] =
+                data[index];
     };
 
     const M6502_PIN_RW = 24 - 16; // out: memory read or write access
@@ -46,25 +64,35 @@ const makeHeatmap = (heatmapCanvas: HTMLCanvasElement) => {
 
     const record = ({ pins_flags, pins_addr }: TickInfo) => {
         const new_op = pins_flags & M6502_SYNC;
-        const index = (pins_addr >> 8) * 4096 + (pins_addr & 255) * 8;
-        const rw = pins_flags & M6502_RW ? 1 : 2;
+        let index: number;
+        if (width1 === 256) {
+            index = (pins_addr >> 8) * rowOfs + (pins_addr & 255) * 8;
+        } else {
+            index =
+                Math.floor(pins_addr / width) * rowOfs +
+                (pins_addr % width) * 8;
+        }
+        const rw = pins_flags & M6502_RW ? 2 : 1;
         if (new_op) {
             unmarkPixel(last_op_index + 1);
             unmarkPixel(last_op_index + 2);
-            setPixel(index);
+            setPixel(index, index + 3);
             last_op_index = index;
             markPixel(last_op_index + 1);
             markPixel(last_op_index + 2);
         }
         if (index === last_op_index) {
             data[index + rw] = VALUE;
+            data[index + 3] = 255;
         } else {
-            setPixel(index + rw);
+            setPixel(index + rw, index + 3);
         }
     };
 
     const update = () => {
         ctx.putImageData(imageData, 0, 0);
+        for (let i = data.length - 1; i > 0; i -= 4)
+            if (data[i] >= 0) --data[i];
         requestAnimationFrame(update);
     };
 
@@ -92,47 +120,47 @@ const useC64emu = () => {
 
             const heatmap = makeHeatmap(heatmapCanvas);
 
-            const c64Emu: C64emuBase = {
+            const c64emu: C64emuBase = {
                 preRun: [],
                 postRun: [],
 
                 print: function (...args) {
                     const str = Array.prototype.slice.call(args).join(" ");
-                    console.log(str);
+                    console.log("c64Emu.print", str);
                 },
 
                 printErr: function (...args) {
                     const str = Array.prototype.slice.call(args).join(" ");
-                    console.error(str);
+                    console.error("c64Emu.printErr", str);
                 },
 
                 canvas: c64emuCanvas,
 
                 setStatus: function (args) {
-                    console.log("setStatus", args);
+                    console.log("c64emu.setStatus", args);
                 },
 
                 monitorRunDependencies: function (args) {
-                    console.log("monitorRunDependencies", args);
+                    console.log("c64emu.monitorRunDependencies", args);
                 },
 
                 webapi_onStopped: function (reason, addr) {
-                    console.log("ONSTOPPED:", reason, addr);
+                    console.log("c64emu.onStopped:", reason, addr);
                 },
 
                 webapi_onContinued: function () {
-                    console.log("CONTINUED");
+                    console.log("c64emu.onContinued");
                 },
 
                 webapi_onTick: function (tick_info) {
                     if (tick1++ % 1000000 === 0) {
-                        console.log("TICK", tick_info);
+                        console.log("c64emu.onTick", tick_info);
                     }
                     heatmap.record(tick_info);
                 },
             };
 
-            return c64Emu as C64emu;
+            return c64emu as C64emu;
         },
         []
     );
@@ -144,12 +172,11 @@ function App() {
     const c64emuCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const heatmapCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const c64emuRef = useRef<C64emu>();
-    const runOnce = useRef(false);
     const { makeC64emu } = useC64emu();
 
     useEffect(() => {
         if (
-            !runOnce.current &&
+            !c64emuRef.current &&
             c64emuCanvasRef.current &&
             heatmapCanvasRef.current
         ) {
@@ -161,7 +188,6 @@ function App() {
             // globalThis.initC64(c64emu);
             c64emuRef.current = c64emu;
             console.log("c64emu=", c64emu);
-            runOnce.current = true;
 
             sleep(3)
                 .then(() => fetchPrgForLoad("/MULE.2.prg", 0x4000))
@@ -181,6 +207,10 @@ function App() {
         c64emuRef.current?._webapi_dbg_break();
     };
 
+    const onContClick = () => {
+        c64emuRef.current?._webapi_dbg_continue();
+    };
+
     const onStepClick = () => {
         c64emuRef.current?._webapi_dbg_step_into();
     };
@@ -197,6 +227,7 @@ function App() {
             </div>
             <div>
                 <button onClick={onStopClick}>Stop</button>
+                <button onClick={onContClick}>Cont</button>
                 <button onClick={onStepClick}>Step</button>
             </div>
             <div>
