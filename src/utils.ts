@@ -1,3 +1,6 @@
+export const sleep = (sec: number) =>
+    new Promise((resolve) => setTimeout(resolve, sec * 1000));
+
 const fetchBinaryData = async (url: string): Promise<Uint8Array> => {
     const response = await fetch(url);
     if (!response.ok) {
@@ -20,14 +23,17 @@ const fetchBinaryData = async (url: string): Promise<Uint8Array> => {
         uint8_t payload[];
     } webapi_fileheader_t;
  */
-export const fetchPrgForLoad = async (url: string): Promise<Uint8Array> => {
+export const fetchPrgForLoad = async (
+    url: string,
+    start: number
+): Promise<Uint8Array> => {
     const prg = await fetchBinaryData(url);
 
     // webapi_fileheader_t
     const fileheader = new Uint8Array([
         ..."CHIPPRG ".split("").map((char) => char.charCodeAt(0)),
-        prg[0],
-        prg[1],
+        start & 255,
+        start >> 8,
         0, // TODO: Flags
         0, // resvd 0
         0, // resvd 1
@@ -36,9 +42,9 @@ export const fetchPrgForLoad = async (url: string): Promise<Uint8Array> => {
         0, // resvd 4
     ]);
 
-    const combinedData = new Uint8Array(fileheader.length + prg.length - 2);
-    combinedData.set(fileheader, 0);
-    combinedData.set(prg.slice(2), fileheader.length);
+    const data = new Uint8Array(fileheader.length + prg.length);
+    data.set(fileheader, 0);
+    data.set(prg, fileheader.length);
 
-    return combinedData;
+    return data;
 };

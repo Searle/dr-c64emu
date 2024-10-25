@@ -5,7 +5,7 @@ import {
     C64emuBase,
     TickInfo,
 } from "../types/floooh_chips-test_webapi";
-import { fetchPrgForLoad } from "./utils";
+import { fetchPrgForLoad, sleep } from "./utils";
 
 declare global {
     function initDebugC64(c64emu: C64emu): void;
@@ -73,11 +73,6 @@ const makeHeatmap = (heatmapCanvas: HTMLCanvasElement) => {
     return { record };
 };
 
-const xx = async () => {
-    const code = await fetchPrgForLoad("/MULE.2.prg");
-    console.log("CODE", code);
-};
-
 let tick1 = 0; // TODO fetch from emulator
 
 const useC64emu = () => {
@@ -94,8 +89,6 @@ const useC64emu = () => {
                 },
                 false
             );
-
-            xx();
 
             const heatmap = makeHeatmap(heatmapCanvas);
 
@@ -169,6 +162,18 @@ function App() {
             c64emuRef.current = c64emu;
             console.log("c64emu=", c64emu);
             runOnce.current = true;
+
+            sleep(3)
+                .then(() => fetchPrgForLoad("/MULE.2.prg", 0x4000))
+                .then((prg) => {
+                    const size = prg.length;
+                    const ptr = c64emu._webapi_alloc(size);
+                    c64emu.HEAPU8.set(prg, ptr);
+                    if (!c64emu._webapi_load(ptr, size)) {
+                        console.warn("_webapi_load() returned false");
+                    }
+                    c64emu._webapi_free(ptr);
+                });
         }
     }, [makeC64emu]);
 

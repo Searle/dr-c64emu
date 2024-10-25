@@ -33,6 +33,13 @@ export declare interface C64emuEvents {
 export declare interface C64emuApi {
     // _webapi_input: (text: string) => void;
 
+    HEAPU8: Uint8Array;
+    HEAPU16: Uint16Array;
+    HEAP32: Int32Array;
+    HEAPU32: Uint32Array;
+    HEAPF32: Float32Array;
+    HEAPF64: Float64Array;
+
     // _webapi functions
     _webapi_dbg_connect: () => void;
     _webapi_dbg_disconnect: () => void;
