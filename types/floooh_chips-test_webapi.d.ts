@@ -67,54 +67,15 @@ export declare interface C64emuApi {
         addr: number,
         numBytes: number
     ) => Uint8Array | null;
+    _webapi_dbg_write_memory: (
+        addr: number,
+        numBytes: number,
+        src: number
+    ) => bool;
     _webapi_input: (text: string) => boolean;
 }
 
 export declare type C64emuBase = C64shell & C64emuEvents;
 export declare type C64emu = C64emuBase & C64emuApi;
-
-declare interface ChipsRange {
-    ptr: number;
-    size: number;
-}
-
-declare interface _webapiCpuState {
-    items: Uint16Array;
-}
-
-// Define additional types used in the API
-declare interface _webapiInterface {
-    boot?: () => void;
-    reset?: () => void;
-    ready?: () => boolean;
-    load?: (range: ChipsRange) => boolean;
-    load_snapshot?: (index: number) => boolean;
-    save_snapshot?: (index: number) => void;
-    dbg_connect?: () => void;
-    dbg_disconnect?: () => void;
-    dbg_add_breakpoint?: (addr: number) => void;
-    dbg_remove_breakpoint?: (addr: number) => void;
-    dbg_break?: () => void;
-    dbg_continue?: () => void;
-    dbg_step_next?: () => void;
-    dbg_step_into?: () => void;
-    dbg_cpu_state?: () => _webapiCpuState;
-    dbg_request_disassembly?: (
-        addr: number,
-        offsetLines: number,
-        numLines: number,
-        outLines: _webapiDasmLine[]
-    ) => void;
-    dbg_read_memory?: (
-        addr: number,
-        numBytes: number,
-        outBuffer: Uint8Array
-    ) => void;
-    input?: (text: string) => void;
-}
-
-declare interface _webapiDesc {
-    funcs: _webapiInterface;
-}
 
 export {};

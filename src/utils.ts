@@ -1,7 +1,7 @@
 export const sleep = (sec: number) =>
     new Promise((resolve) => setTimeout(resolve, sec * 1000));
 
-const fetchBinaryData = async (url: string): Promise<Uint8Array> => {
+export const fetchBinaryData = async (url: string): Promise<Uint8Array> => {
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Failed to fetch data from ${url}`);
@@ -23,12 +23,7 @@ const fetchBinaryData = async (url: string): Promise<Uint8Array> => {
         uint8_t payload[];
     } webapi_fileheader_t;
  */
-export const fetchPrgForLoad = async (
-    url: string,
-    start: number
-): Promise<Uint8Array> => {
-    const prg = await fetchBinaryData(url);
-
+export const makePrgForLoad = (start: number, prg: Uint8Array): Uint8Array => {
     // webapi_fileheader_t
     const fileheader = new Uint8Array([
         ..."CHIPPRG ".split("").map((char) => char.charCodeAt(0)),
@@ -45,6 +40,10 @@ export const fetchPrgForLoad = async (
     const data = new Uint8Array(fileheader.length + prg.length);
     data.set(fileheader, 0);
     data.set(prg, fileheader.length);
-
     return data;
 };
+
+export const fetchPrgForLoad = async (
+    url: string,
+    start: number
+): Promise<Uint8Array> => makePrgForLoad(start, await fetchBinaryData(url));

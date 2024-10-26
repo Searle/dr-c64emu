@@ -5,7 +5,7 @@ import {
     C64emuBase,
     TickInfo,
 } from "../types/floooh_chips-test_webapi";
-import { fetchPrgForLoad, sleep } from "./utils";
+import { fetchBinaryData, fetchPrgForLoad, sleep } from "./utils";
 
 declare global {
     function initDebugC64(c64emu: C64emu): void;
@@ -174,6 +174,47 @@ function App() {
     const c64emuRef = useRef<C64emu>();
     const { makeC64emu } = useC64emu();
 
+    const getC64emu = async (): Promise<C64emu> => {
+        if (!c64emuRef.current) throw new Error("c64emuRef not ready");
+        return c64emuRef.current;
+    };
+
+    const loadMULE2 = useCallback(async () => {
+        await sleep(3);
+        const c64emu = await getC64emu();
+        const prg = await fetchPrgForLoad("/MULE.2.prg", 0x4000);
+        const size = prg.length;
+        const ptr = c64emu._webapi_alloc(size);
+        c64emu.HEAPU8.set(prg, ptr);
+        if (!c64emu._webapi_load(ptr, size)) {
+            console.warn("_webapi_load() returned false");
+        }
+        c64emu._webapi_free(ptr);
+        await sleep(1);
+        c64emu._webapi_dbg_continue(); // doesn't work?
+    }, []);
+
+    const loadVicePrg = useCallback(async () => {
+        const c64emu = await getC64emu();
+        c64emu._webapi_dbg_break();
+
+        await sleep(1); // Warum auch immer...
+
+        const prg = await fetchBinaryData(
+            "/vice-snapshot-05-round-1-finished.prg"
+        );
+        const size = prg.length;
+        const ptr = c64emu._webapi_alloc(size - 2);
+        c64emu.HEAPU8.set(prg.slice(2), ptr);
+        if (
+            !c64emu._webapi_dbg_write_memory(prg[0] + (prg[1] << 8), size, ptr)
+        ) {
+            console.warn("_webapi_dbg_write_memory() returned false");
+        }
+        c64emu._webapi_free(ptr);
+        c64emu._webapi_reset();
+    }, []);
+
     useEffect(() => {
         if (
             !c64emuRef.current &&
@@ -189,19 +230,9 @@ function App() {
             c64emuRef.current = c64emu;
             console.log("c64emu=", c64emu);
 
-            sleep(3)
-                .then(() => fetchPrgForLoad("/MULE.2.prg", 0x4000))
-                .then((prg) => {
-                    const size = prg.length;
-                    const ptr = c64emu._webapi_alloc(size);
-                    c64emu.HEAPU8.set(prg, ptr);
-                    if (!c64emu._webapi_load(ptr, size)) {
-                        console.warn("_webapi_load() returned false");
-                    }
-                    c64emu._webapi_free(ptr);
-                });
+            loadMULE2();
         }
-    }, [makeC64emu]);
+    }, [loadMULE2, makeC64emu]);
 
     const onStopClick = () => {
         c64emuRef.current?._webapi_dbg_break();
@@ -213,6 +244,15 @@ function App() {
 
     const onStepClick = () => {
         c64emuRef.current?._webapi_dbg_step_into();
+    };
+
+    const onLoadVicePrg = () => {
+        loadVicePrg();
+    };
+
+    const onResetClick = () => {
+        // Currently this sets the PC to $4000 and does not do a reset
+        c64emuRef.current?._webapi_reset();
     };
 
     return (
@@ -229,6 +269,8 @@ function App() {
                 <button onClick={onStopClick}>Stop</button>
                 <button onClick={onContClick}>Cont</button>
                 <button onClick={onStepClick}>Step</button>
+                <button onClick={onLoadVicePrg}>LoadVicePrg</button>
+                <button onClick={onResetClick}>Reset</button>
             </div>
             <div>
                 <canvas
