@@ -120,7 +120,7 @@ function App() {
             console.warn("_webapi_dbg_write_memory() returned false");
         }
         c64emu._webapi_free(ptr);
-        c64emu._webapi_reset();
+        c64emu._webapi_dbg_set_pc(0x4000);
     }, []);
 
     useEffect(() => {

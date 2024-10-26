@@ -57,6 +57,7 @@ export declare interface C64emuApi {
     _webapi_dbg_continue: () => void;
     _webapi_dbg_step_next: () => void;
     _webapi_dbg_step_into: () => void;
+    _webapi_dbg_set_pc: (pc: number) => void;
     _webapi_dbg_cpu_state: () => Uint16Array;
     _webapi_dbg_request_disassembly: (
         addr: number,
